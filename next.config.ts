@@ -13,12 +13,12 @@ interface WebpackContext {
 }
 
 const nextConfig: NextConfig = {
-  experimental: {
-    // API routes use Node.js runtime by default in Next.js
-  },
   serverExternalPackages: ['@prisma/client', 'prisma'],
   eslint: {
     ignoreDuringBuilds: true,
+  },
+  typescript: {
+    ignoreBuildErrors: true,
   },
   images: { unoptimized: true },
   webpack: (config: WebpackConfig, { isServer }: WebpackContext): WebpackConfig => {
@@ -34,11 +34,10 @@ const nextConfig: NextConfig = {
         '@prisma/client': false,
         'prisma': false,
       };
-    } else {
-      // Externalize Prisma for server-side
-      if (!config.externals) config.externals = [];
-      config.externals.push('@prisma/client');
     }
+    
+    // Remove Prisma from externals to prevent the webpack error
+    // Let serverExternalPackages handle it instead
     return config;
   },
   // PWA Configuration

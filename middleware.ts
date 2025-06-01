@@ -1,57 +1,35 @@
-import { auth } from '@/auth';
-import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
+import { NextRequest } from 'next/server'
+import { auth } from '@/auth'
 
-export async function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
-  
-  // Skip middleware for all API routes and static files
-  if (
-    pathname.startsWith('/api/') ||
-    pathname.startsWith('/_next/') ||
-    pathname.startsWith('/favicon.ico') ||
-    pathname.startsWith('/public/') ||
-    pathname.includes('.')
-  ) {
-    return NextResponse.next();
+export default auth((req: NextRequest & { auth: any }) => {
+  const isAuth = !!req.auth
+  const isAuthPage = req.nextUrl.pathname.startsWith('/auth')
+  const isPublicPage = ['/', '/about', '/contact'].includes(req.nextUrl.pathname)
+
+  // Redirect authenticated users away from auth pages
+  if (isAuthPage && isAuth) {
+    return Response.redirect(new URL('/dashboard', req.url))
   }
 
-  // Public routes that don't require authentication
-  const publicRoutes = [
-    '/',
-    '/auth/login',
-    '/auth/register'
-  ];
-
-  // Check if the route is public
-  const isPublicRoute = publicRoutes.some(route => 
-    pathname.startsWith(route) || pathname === route
-  );
-
-  if (isPublicRoute) {
-    return NextResponse.next();
+  // Allow public pages and auth pages
+  if (isPublicPage || isAuthPage) {
+    return
   }
 
-  try {
-    const session = await auth();
-    
-    if (!session?.user?.email) {
-      // Redirect to login if not authenticated
-      const loginUrl = new URL('/auth/login', request.url);
-      loginUrl.searchParams.set('callbackUrl', pathname);
-      return NextResponse.redirect(loginUrl);
+  // All other routes require authentication
+  if (!isAuth) {
+    let from = req.nextUrl.pathname;
+    if (req.nextUrl.search) {
+      from += req.nextUrl.search;
     }
-
-    return NextResponse.next();
-  } catch (error) {
-    console.error('Middleware auth error:', error);
-    const loginUrl = new URL('/auth/login', request.url);
-    return NextResponse.redirect(loginUrl);
+    return Response.redirect(
+      new URL(`/auth/signin?from=${encodeURIComponent(from)}`, req.url)
+    );
   }
-}
+})
 
 export const config = {
   matcher: [
-    '/((?!api|_next/static|_next/image|favicon.ico|public|.*\\.).*)',
+    '/((?!api/auth|_next/static|_next/image|favicon.ico|public|.*\\.png$|.*\\.jpg$|.*\\.jpeg$|.*\\.gif$|.*\\.svg$).*)',
   ],
-};
+}
