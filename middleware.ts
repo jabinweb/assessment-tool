@@ -23,7 +23,7 @@ export default auth((req: NextRequest & { auth: any }) => {
       from += req.nextUrl.search;
     }
     return Response.redirect(
-      new URL(`/auth/signin?from=${encodeURIComponent(from)}`, req.url)
+      new URL(`/auth/login?from=${encodeURIComponent(from)}`, req.url)
     );
   }
 })
