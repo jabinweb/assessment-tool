@@ -6,6 +6,12 @@ export default auth((req: NextRequest & { auth: any }) => {
   const isAuthPage = req.nextUrl.pathname.startsWith('/auth')
   const isPublicPage = ['/', '/about', '/contact'].includes(req.nextUrl.pathname)
 
+  // Redirect old assessment results route to new consolidated route
+  if (req.nextUrl.pathname.startsWith('/assessment/results/')) {
+    const userId = req.nextUrl.pathname.split('/assessment/results/')[1];
+    return Response.redirect(new URL(`/results?user=${userId}`, req.url));
+  }
+
   // Redirect authenticated users away from auth pages
   if (isAuthPage && isAuth) {
     return Response.redirect(new URL('/dashboard', req.url))

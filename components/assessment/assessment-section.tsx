@@ -304,14 +304,14 @@ export function AssessmentSection({
         const nextSection = sectionOrder[currentIndex + 1];
         router.push(`/assessment/section/${nextSection}`);
       } else {
-        // Complete assessment and generate report
+        // Complete assessment and generate report - redirect to unified results route
         await fetch('/api/assessment/complete', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ userId })
         });
         
-        router.push('/results');
+        router.push('/results'); // Unified results route
       }
     } catch (error) {
       console.error('Error completing section:', error);
