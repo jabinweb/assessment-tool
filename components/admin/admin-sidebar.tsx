@@ -17,7 +17,8 @@ import {
   Bell,
   Database,
   Mail,
-  Activity
+  Activity,
+  ClipboardList
 } from 'lucide-react'
 import { useState } from 'react'
 
@@ -31,6 +32,11 @@ const menuItems = [
     title: 'Users',
     href: '/admin/users',
     icon: Users
+  },
+  {
+    title: 'Assessment Types',
+    href: '/admin/assessment-types',
+    icon: ClipboardList
   },
   {
     title: 'Questions',

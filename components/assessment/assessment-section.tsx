@@ -42,7 +42,25 @@ export function AssessmentSection({
   const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [isLoading, setIsLoading] = useState(true);
 
-  // Auto-save functionality
+  // Define saveAnswer function first
+  const saveAnswer = async (questionId: string, answer: string, timeOnQuestion: number) => {
+    try {
+      await fetch('/api/assessment/answer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          questionId,
+          answer,
+          timeSpent: timeOnQuestion,
+          sessionId
+        })
+      });
+    } catch (error) {
+      console.error('Error saving answer:', error);
+    }
+  };
+
+  // Auto-save functionality - now defined after saveAnswer
   const autoSave = useCallback(async (questionId: string, answer: string, timeOnQuestion: number) => {
     if (autoSaveStatus === 'saving') return;
     
@@ -55,7 +73,7 @@ export function AssessmentSection({
       console.error('Auto-save failed:', error);
       setAutoSaveStatus('idle');
     }
-  }, [autoSaveStatus]);
+  }, [autoSaveStatus, saveAnswer]);
 
   // Check if questions are loaded
   useEffect(() => {
@@ -218,23 +236,6 @@ export function AssessmentSection({
     }, 1000);
   };
 
-  const saveAnswer = async (questionId: string, answer: string, timeOnQuestion: number) => {
-    try {
-      await fetch('/api/assessment/answer', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          questionId,
-          answer,
-          timeSpent: timeOnQuestion,
-          sessionId
-        })
-      });
-    } catch (error) {
-      console.error('Error saving answer:', error);
-    }
-  };
-
   const handleNext = async () => {
     const questionId = currentQuestion.id;
     const answer = answers[questionId];
@@ -288,36 +289,92 @@ export function AssessmentSection({
     setIsSubmitting(true);
     
     try {
-      // Mark session as completed
-      await fetch('/api/assessment/session/complete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId })
-      });
+      // Save final answer for current question if exists
+      const questionId = currentQuestion.id;
+      const answer = answers[questionId];
+      const timeOnQuestion = timeSpent[questionId] || (Date.now() - questionStartTime);
+
+      if (answer !== undefined) {
+        await saveAnswer(questionId, answer, timeOnQuestion);
+      }
 
       // Determine next section or complete assessment
       const sectionOrder = ['aptitude', 'personality', 'interest'];
       const currentIndex = sectionOrder.indexOf(section);
       
       if (currentIndex < sectionOrder.length - 1) {
-        // Go to next section
+        // Update session to next section
         const nextSection = sectionOrder[currentIndex + 1];
-        router.push(`/assessment/section/${nextSection}`);
-      } else {
-        // Complete assessment and generate report - redirect to unified results route
-        await fetch('/api/assessment/complete', {
+        const response = await fetch('/api/assessment/session/update', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId })
+          body: JSON.stringify({ 
+            sessionId, 
+            currentSection: nextSection,
+            status: 'in_progress'
+          })
         });
-        
-        router.push('/results'); // Unified results route
+
+        if (response.ok) {
+          // Force page refresh to load next section
+          window.location.href = `/assessment/${sessionId}`;
+        } else {
+          console.error('Failed to update session');
+          setIsSubmitting(false);
+        }
+      } else {
+        // Complete entire assessment
+        const response = await fetch('/api/assessment/complete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessionId })
+        });
+
+        if (response.ok) {
+          window.location.href = `/assessment/${sessionId}/results`;
+        } else {
+          console.error('Failed to complete assessment');
+          setIsSubmitting(false);
+        }
       }
     } catch (error) {
       console.error('Error completing section:', error);
       setIsSubmitting(false);
     }
   };
+
+  // Show section completion overlay when submitting on last question
+  if (isSubmitting && isLastQuestion) {
+    const sectionOrder = ['aptitude', 'personality', 'interest'];
+    const currentIndex = sectionOrder.indexOf(section);
+    const isLastSection = currentIndex === sectionOrder.length - 1;
+
+    return (
+      <div className="fixed inset-0 bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center z-50">
+        <div className="bg-white rounded-2xl shadow-lg p-8 max-w-md w-full mx-4 text-center">
+          <div className="mb-6">
+            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            </div>
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">
+            {isLastSection ? 'Completing Assessment...' : `${config.title} Complete!`}
+          </h2>
+          <p className="text-gray-600 mb-6">
+            {isLastSection 
+              ? 'Finalizing your results and generating your comprehensive report...' 
+              : `Preparing the next section...`
+            }
+          </p>
+          {!isLastSection && (
+            <div className="text-sm text-gray-500">
+              Next: {sectionOrder[currentIndex + 1].charAt(0).toUpperCase() + sectionOrder[currentIndex + 1].slice(1)} Assessment
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
@@ -502,6 +559,36 @@ export function AssessmentSection({
           </div>
         )}
       </div>
+
+      {/* Add section completion success message */}
+      {isSubmitting && isLastQuestion && (
+        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
+          <div className="bg-white rounded-2xl shadow-lg p-8 max-w-md w-full mx-4 text-center">
+            <div className="mb-6">
+              {true ? (
+                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <CheckCircle className="h-10 w-10 text-green-600" />
+                </div>
+              ) : (
+                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                </div>
+              )}
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">
+              {'Assessment Complete!'}
+            </h2>
+            <p className="text-gray-600 mb-6">
+              {'Generating your comprehensive report...'}
+            </p>
+            {false && (
+              <div className="text-sm text-gray-500">
+                Next: {['aptitude', 'personality', 'interest'][1].charAt(0).toUpperCase() + ['aptitude', 'personality', 'interest'][1].slice(1)} Assessment
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 

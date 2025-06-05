@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Download, X } from 'lucide-react';
+import { Button } from './button';
 
 export function InstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -63,37 +63,22 @@ export function InstallPrompt() {
   }
 
   return (
-    <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:max-w-sm bg-white border border-gray-200 rounded-lg shadow-lg p-4 z-50">
-      <div className="flex items-start justify-between">
-        <div className="flex-1">
-          <div className="flex items-center mb-2">
-            <Download className="h-5 w-5 text-indigo-600 mr-2" />
-            <h3 className="font-semibold text-gray-900">Install App</h3>
-          </div>
-          <p className="text-sm text-gray-600 mb-3">
-            Install Career Assessment for quick access and offline use.
-          </p>
-          <div className="flex space-x-2">
-            <button
-              onClick={handleInstall}
-              className="bg-indigo-600 text-white px-3 py-1.5 rounded text-sm font-medium hover:bg-indigo-700 transition-colors"
-            >
-              Install
-            </button>
-            <button
-              onClick={handleDismiss}
-              className="text-gray-500 px-3 py-1.5 rounded text-sm hover:text-gray-700 transition-colors"
-            >
-              Not now
-            </button>
-          </div>
+    <div className="fixed bottom-4 left-4 right-4 z-50 md:left-auto md:right-4 md:w-80">
+      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-4">
+        <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-2">
+          Install Career Assessment
+        </h3>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+          Install our app for a better experience and offline access.
+        </p>
+        <div className="flex gap-2">
+          <Button onClick={handleInstall} size="sm" className="flex-1">
+            Install
+          </Button>
+          <Button onClick={handleDismiss} variant="outline" size="sm">
+            Not now
+          </Button>
         </div>
-        <button
-          onClick={handleDismiss}
-          className="text-gray-400 hover:text-gray-600 ml-2"
-        >
-          <X className="h-4 w-4" />
-        </button>
       </div>
     </div>
   );

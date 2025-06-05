@@ -146,3 +146,44 @@ export async function PUT(request: NextRequest) {
     );
   }
 }
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const session = await auth();
+    
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const data = await request.json();
+    
+    const updateData = {
+      name: data.name || null,
+      age: data.age || null,
+      gradeLevel: data.gradeLevel || null,
+      schoolName: data.schoolName || null,
+      counselorEmail: data.counselorEmail || null,
+      parentEmail: data.parentEmail || null,
+      educationLevel: data.educationLevel || null,
+      targetAudience: data.targetAudience || null,
+      assessmentProfile: data.assessmentProfile || null,
+      preferredLanguage: data.preferredLanguage || 'en'
+    };
+
+    const updatedUser = await prisma.user.update({
+      where: { email: session.user.email },
+      data: updateData
+    });
+
+    return NextResponse.json({ 
+      message: 'Profile updated successfully',
+      user: updatedUser 
+    });
+  } catch (error) {
+    console.error('Profile update error:', error);
+    return NextResponse.json(
+      { error: 'Failed to update profile' },
+      { status: 500 }
+    );
+  }
+}

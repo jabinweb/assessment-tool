@@ -2,7 +2,7 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
   binaryTargets = ["native", "windows", "debian-openssl-3.0.x"]
 }
 
@@ -12,44 +12,62 @@ datasource db {
 }
 
 model User {
-  id            String    @id @default(uuid())
-  name          String?
-  age           Int?      // Make age optional
-  email         String    @unique
-  emailVerified DateTime?
-  password      String?   // For email/password login
-  image         String?
-  role          String    @default("user") // "user" or "admin"
-  createdAt     DateTime  @default(now())
-  answers       Answer[]
-  reports       Report[]
-  accounts      Account[]
-  sessions      Session[]
+  id                 String              @id @default(uuid())
+  name               String?
+  age                Int?
+  email              String              @unique
+  emailVerified      DateTime?
+  password           String?
+  image              String?
+  role               String              @default("user")
+  createdAt          DateTime            @default(now())
+  answers            Answer[]
+  reports            Report[]
+  accounts           Account[]
+  sessions           Session[]
   assessmentSessions AssessmentSession[]
   lastActiveAt       DateTime?
-  preferredLanguage  String?   @default("en")
-  gradeLevel         String?   // 9th, 10th, 11th, 12th, college
+  preferredLanguage  String?             @default("en")
+  gradeLevel         String?
   schoolName         String?
   counselorEmail     String?
   parentEmail        String?
-  notifications Notification[]
+  notifications      Notification[]
+  // New fields for age-appropriate assessments
+  educationLevel     String? // "school" or "college"
+  targetAudience     String? // "school_student", "college_student", "working_professional"
+  assessmentProfile  String? // "basic", "intermediate", "advanced"
 }
 
 model Question {
-  id         String   @id @default(uuid())
-  section    String   // aptitude, personality, interest
-  subDomain  String?  // For aptitude: logical, numerical, verbal, spatial; For personality: openness, conscientiousness, etc.; For interest: RIASEC codes
-  type       String   // multiple-choice, likert, preference
-  text       String
-  options    Json     // Array of options
-  order      Int      // Order in which questions should appear
-  timeLimit  Int?     // Time limit in seconds (for aptitude questions)
-  difficulty String?  // easy, medium, hard
-  trait      String?  // For personality: specific trait being measured
-  riasecCode String?  // For interest: R, I, A, S, E, C
-  answers    Answer[]
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id                 String          @id @default(uuid())
+  section            String // aptitude, personality, interest
+  subDomain          String?
+  type               String // multiple-choice, likert, preference
+  text               String
+  options            Json
+  order              Int
+  timeLimit          Int?
+  difficulty         String? // easy, medium, hard
+  trait              String?
+  riasecCode         String?
+  answers            Answer[]
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  // New fields for age-appropriate content
+  targetAudience     String[] // ["school_student", "college_student", "working_professional"]
+  ageGroup           String[] // ["13-15", "16-18", "18-22", "22+"]
+  educationLevel     String[] // ["school", "college", "professional"]
+  complexity         String          @default("basic") // "basic", "intermediate", "advanced"
+  visualAid          Json? // For school students - images, icons, etc.
+  schoolFriendlyText String? // Simplified version for younger students
+  examples           Json? // Age-appropriate examples
+  isActive           Boolean         @default(true)
+  questionGroup      String? // Group related questions together
+  prerequisites      String[] // Required previous knowledge/experience
+  // Updated relationship
+  assessmentTypeId   String? // Link to specific assessment type
+  assessmentType     AssessmentType? @relation(fields: [assessmentTypeId], references: [id])
 }
 
 model Answer {
@@ -61,9 +79,9 @@ model Answer {
   version    Int      @default(1) // Track which assessment version this belongs to
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
-  timeSpent     Int?     // Time spent on this question in seconds
-  isCorrect     Boolean? // For aptitude questions
-  rawScore      Float?   // Raw score before normalization
+  timeSpent  Int? // Time spent on this question in seconds
+  isCorrect  Boolean? // For aptitude questions
+  rawScore   Float? // Raw score before normalization
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
 
@@ -73,22 +91,31 @@ model Answer {
 model Report {
   id                 String   @id @default(uuid())
   userId             String
-  version            Int      @default(1) // Track assessment versions
-  isLatest           Boolean  @default(true) // Mark the most recent report
-  aptitudeScores     Json    // { logical: 85, numerical: 78, verbal: 92, spatial: 70, overall: 81 }
-  personalityScores  Json    // { openness: 75, conscientiousness: 82, extraversion: 60, agreeableness: 88, neuroticism: 45 }
-  interestScores     Json    // { realistic: 70, investigative: 85, artistic: 60, social: 75, enterprising: 80, conventional: 55 }
-  personalitySummary String // Generated personality summary
-  interestSummary    String // Generated interest summary
-  careerMatches      Json    // Enhanced with match percentages, skill requirements, education paths
-  recommendations    Json    // Personalized recommendations and next steps
-  strengths          Json    // Identified strengths and areas of excellence
-  developmentAreas   Json    // Areas for improvement and development
-  reliability        Json    // Cronbach's alpha and other reliability measures
-  pdfUrl             String? // URL to generated PDF report
+  version            Int      @default(1)
+  isLatest           Boolean  @default(true)
+  aptitudeScores     Json
+  personalityScores  Json
+  interestScores     Json
+  personalitySummary String
+  interestSummary    String
+  careerMatches      Json
+  recommendations    Json
+  strengths          Json
+  developmentAreas   Json
+  reliability        Json
+  pdfUrl             String?
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
   user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // New fields for age-appropriate reports
+  reportType         String   @default("standard") // "simplified", "standard", "advanced"
+  targetAudience     String   @default("college_student") // "school_student", "college_student", "working_professional"
+  visualElements     Json? // Charts, infographics for different age groups
+  parentSummary      String? // Summary for parents (school students)
+  counselorNotes     Json? // Professional notes for counselors
+  actionPlan         Json? // Age-appropriate next steps
+  skillGaps          Json? // Areas needing development
+  careerPathways     Json? // Different for school vs college students
 
   @@unique([userId, version])
 }
@@ -135,59 +162,151 @@ model VerificationToken {
 
 // Add Career Database
 model Career {
-  id                 String   @id @default(uuid())
-  title              String
-  description        String   @db.Text
-  riasecProfile      Json     // Required RIASEC scores for good match
-  requiredSkills     Json     // Array of required skills
-  educationLevel     String   // high_school, associate, bachelor, master, phd
-  salaryRange        Json     // { min: 40000, max: 80000, median: 60000 }
-  growthOutlook      String   // excellent, good, average, poor
-  workEnvironment    String   // office, outdoor, laboratory, etc.
-  personalityFit     Json     // Required Big Five traits
-  industry           String   // Technology, Healthcare, Education, etc.
-  workStyle          String   // independent, team, leadership
-  isActive           Boolean  @default(true)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  id                String   @id @default(uuid())
+  title             String
+  description       String   @db.Text
+  riasecProfile     Json
+  requiredSkills    Json
+  educationLevel    String
+  salaryRange       Json
+  growthOutlook     String
+  workEnvironment   String
+  personalityFit    Json
+  industry          String
+  workStyle         String
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  // New fields for age-appropriate career guidance
+  targetAudience    String[] // ["school_student", "college_student", "working_professional"]
+  entryPaths        Json     @default("{}") // Different entry paths for different education levels
+  schoolSubjects    String[] // Relevant school subjects
+  collegePrograms   String[] // Relevant college programs/majors
+  internships       Json? // Available internship opportunities
+  skillDevelopment  Json     @default("{}") // Age-appropriate skill building activities
+  realWorldExamples Json     @default("{}") // Industry professionals, day-in-life examples
+  careerProgression Json     @default("{}") // Career ladder/progression paths
+  alternativePaths  Json     @default("{}") // Alternative routes to this career
 }
 
-// Add Assessment Sessions for better tracking
+model AssessmentTemplate {
+  id              String   @id @default(uuid())
+  name            String // "School Basic", "College Comprehensive", etc.
+  description     String
+  targetAudience  String // "school_student", "college_student", "working_professional"
+  ageGroup        String // "13-15", "16-18", "18-22", "22+"
+  educationLevel  String // "school", "college", "professional"
+  sections        Json // Which sections to include and their weights
+  questionCounts  Json // Number of questions per section
+  timeAllocations Json // Time limits per section
+  difficultyLevel String // "basic", "intermediate", "advanced"
+  reportStyle     String // "visual", "standard", "detailed"
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  version         Int      @default(1)
+}
+
+// Assessment Type Configuration
+model AssessmentType {
+  id             String   @id @default(uuid())
+  name           String   @unique // "School Student Assessment", "College Student Assessment", "Working Professional Assessment"
+  code           String   @unique // "school_student", "college_student", "working_professional"  
+  description    String   @db.Text
+  targetAudience String // "school_student", "college_student", "working_professional"
+  ageGroup       String[] // ["13-15", "16-18"] or ["18-22", "22+"]
+  educationLevel String // "school", "college", "professional"
+  isActive       Boolean  @default(true)
+  isDefault      Boolean  @default(false)
+
+  // Assessment Configuration
+  totalDuration  Int // Total time in minutes
+  sectionsConfig Json // Configuration for each section (aptitude, personality, interest)
+  scoringWeights Json // Weights for different sections
+
+  // UI/UX Configuration  
+  displayStyle    String  @default("standard") // "visual", "standard", "professional"
+  useVisualAids   Boolean @default(false)
+  useGamification Boolean @default(false)
+  languageLevel   String  @default("intermediate") // "simple", "intermediate", "advanced"
+
+  // Report Configuration
+  reportStyle           String  @default("standard") // "simplified", "standard", "detailed"
+  includeParentSummary  Boolean @default(false)
+  includeCounselorNotes Boolean @default(false)
+
+  // Relationships
+  questions          Question[]
+  assessmentSessions AssessmentSession[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?
+  updatedBy String?
+}
+
 model AssessmentSession {
-  id              String    @id @default(uuid())
-  userId          String
-  section         String    // aptitude, personality, interest
-  status          String    // in_progress, completed, abandoned
-  version         Int       @default(1) // Track assessment version
-  startedAt       DateTime  @default(now())
-  completedAt     DateTime?
-  totalQuestions  Int
-  answeredCount   Int       @default(0)
-  timeSpent       Int       @default(0) // Total time in seconds
-  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id               String          @id @default(uuid())
+  userId           String          @unique // Make this unique to enforce one session per user
+  sessionType      String          @default("full") // full, quick, retake
+  status           String // started, in_progress, completed, abandoned
+  currentSection   String? // aptitude, personality, interest
+  progress         Json            @default("{}") // Track progress through sections
+  timeSpent        Int             @default(0) // Total time in seconds
+  startedAt        DateTime        @default(now())
+  completedAt      DateTime?
+  lastActivityAt   DateTime        @default(now())
+  metadata         Json? // Additional session data
+  version          Int             @default(1)
+  reportId         String? // Link to generated report
+  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Remove fields that don't make sense for single session
+  templateId       String? // Link to AssessmentTemplate
+  targetAudience   String? // Duplicate for quick access
+  // Updated relationship
+  assessmentTypeId String? // Link to assessment type used
+  assessmentType   AssessmentType? @relation(fields: [assessmentTypeId], references: [id])
+
+  // Add automatic cleanup tracking
+  isActive   Boolean   @default(true)
+  replacedAt DateTime? // When this session was replaced by a new one
+  replacedBy String? // ID of the session that replaced this one
+}
+
+// Notifications for users
+model Notification {
+  id                   String    @id @default(uuid())
+  userId               String
+  type                 String // assessment_reminder, report_ready, system_update
+  title                String
+  message              String    @db.Text
+  isRead               Boolean   @default(false)
+  priority             String    @default("normal") // low, normal, high, urgent
+  actionUrl            String? // URL to navigate when clicked
+  metadata             Json? // Additional notification data
+  createdAt            DateTime  @default(now())
+  readAt               DateTime?
+  expiresAt            DateTime?
+  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // New fields for age-appropriate notifications
+  targetAudience       String[] // Can target specific user types
+  isParentNotification Boolean   @default(false) // For school students' parents
 }
 
 // Add Settings for system configuration
 model SystemSettings {
   id                    String   @id @default("system")
-  scoringWeights        Json     // Assessment scoring weights
-  timeouts              Json     // Session and question timeouts
-  features              Json     // Feature toggles
-  emailTemplates        Json     // Email notification templates
-  careerMatchingWeights Json     // Weights for career matching algorithm
+  scoringWeights        Json
+  timeouts              Json
+  features              Json
+  emailTemplates        Json
+  careerMatchingWeights Json
   updatedAt             DateTime @updatedAt
-  updatedBy             String   // Admin who made the changes
-}
-
-// Add Notification system
-model Notification {
-  id          String    @id @default(uuid())
-  userId      String?   // null for broadcast notifications
-  title       String
-  message     String    @db.Text
-  type        String    // info, success, warning, error
-  isRead      Boolean   @default(false)
-  createdAt   DateTime  @default(now())
-  expiresAt   DateTime?
-  user        User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  updatedBy             String
+  // New settings for age-appropriate assessments
+  ageGroupSettings      Json     @default("{}") // Different settings per age group
+  assessmentTemplates   Json     @default("{}") // Template configurations
+  reportTemplates       Json     @default("{}") // Different report styles
+  contentFilters        Json     @default("{}") // Age-appropriate content filtering
+  parentalControls      Json     @default("{}") // Settings for parental involvement
 }

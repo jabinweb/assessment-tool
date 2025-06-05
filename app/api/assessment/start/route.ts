@@ -7,75 +7,115 @@ export async function POST(request: NextRequest) {
     const session = await auth();
     
     if (!session?.user?.email) {
-      return NextResponse.redirect(new URL('/auth/login', request.url));
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Get user from database using email to ensure we have the correct user ID
     const user = await prisma.user.findUnique({
-      where: { email: session.user.email }
+      where: { email: session.user.email },
+      select: { id: true, name: true, email: true }
     });
 
     if (!user) {
-      return NextResponse.redirect(new URL('/auth/login?error=user_not_found', request.url));
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    // Get the latest report version to determine next version number
-    const latestReport = await prisma.report.findFirst({
-      where: { userId: user.id },
-      orderBy: { version: 'desc' }
-    });
+    const { assessmentTypeId, sessionType = 'full' } = await request.json();
 
-    const nextVersion = latestReport ? latestReport.version + 1 : 1;
-
-    // Mark all previous reports as not latest
-    if (latestReport) {
-      await prisma.report.updateMany({
-        where: { 
-          userId: user.id,
-          isLatest: true 
-        },
-        data: { isLatest: false }
-      });
+    if (!assessmentTypeId) {
+      return NextResponse.json({ error: 'Assessment type is required' }, { status: 400 });
     }
 
-    // Close any existing assessment sessions
-    await prisma.assessmentSession.updateMany({
-      where: {
-        userId: user.id,
-        status: 'in_progress'
-      },
-      data: {
-        status: 'abandoned'
+    // Get assessment type configuration
+    const assessmentType = await prisma.assessmentType.findUnique({
+      where: { id: assessmentTypeId },
+      include: {
+        questions: {
+          where: { isActive: true },
+          orderBy: [{ section: 'asc' }, { order: 'asc' }]
+        }
       }
     });
 
-    // Check if the user already has an active assessment session
-    const existingSession = await prisma.assessmentSession.findFirst({
+    if (!assessmentType || !assessmentType.isActive) {
+      return NextResponse.json({ error: 'Assessment type not found or inactive' }, { status: 404 });
+    }
+
+    // Check if user has an active session
+    const activeSession = await prisma.assessmentSession.findFirst({
       where: {
         userId: user.id,
-        status: 'in_progress'
+        status: { in: ['started', 'in_progress'] }
       }
     });
 
-    if (existingSession) {
-      return NextResponse.redirect(new URL(`/assessment/section/${existingSession.section}`, request.url));
+    if (activeSession) {
+      return NextResponse.json({ 
+        error: 'You have an active assessment session. Please complete or abandon it first.',
+        activeSessionId: activeSession.id
+      }, { status: 409 });
     }
 
-    // Create a new assessment session with new version
+    // Create new assessment session with proper data structure
     const newSession = await prisma.assessmentSession.create({
       data: {
         userId: user.id,
-        section: 'aptitude',
-        status: 'in_progress',
-        version: nextVersion,
-        totalQuestions: 60,
+        sessionType,
+        status: 'started',
+        currentSection: 'aptitude',
+        assessmentTypeId,
+        targetAudience: assessmentType.targetAudience,
+        progress: {
+          aptitude: { 
+            completed: 0, 
+            total: assessmentType.questions.filter(q => q.section === 'aptitude').length 
+          },
+          personality: { 
+            completed: 0, 
+            total: assessmentType.questions.filter(q => q.section === 'personality').length 
+          },
+          interest: { 
+            completed: 0, 
+            total: assessmentType.questions.filter(q => q.section === 'interest').length 
+          }
+        },
+        metadata: {
+          startedFrom: 'web',
+          userAgent: request.headers.get('user-agent') || 'unknown',
+          assessmentConfig: assessmentType.sectionsConfig
+        }
+      },
+      include: {
+        assessmentType: {
+          select: {
+            id: true,
+            name: true,
+            code: true,
+            totalDuration: true
+          }
+        }
       }
     });
 
-    return NextResponse.redirect(new URL(`/assessment/section/aptitude`, request.url));
+    return NextResponse.json({
+      sessionId: newSession.id,
+      assessmentType: {
+        id: assessmentType.id,
+        name: assessmentType.name,
+        code: assessmentType.code,
+        totalDuration: assessmentType.totalDuration
+      },
+      totalQuestions: assessmentType.questions.length,
+      estimatedDuration: assessmentType.totalDuration,
+      currentSection: 'aptitude'
+    });
 
   } catch (error) {
-    console.error('Assessment start error:', error);
-    return NextResponse.redirect(new URL('/auth/login?error=system_error', request.url));
+    console.error('Error starting assessment:', error);
+    return NextResponse.json({ 
+      error: 'Internal server error',
+      details: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : String(error)) : undefined
+    }, { status: 500 });
   }
 }
 

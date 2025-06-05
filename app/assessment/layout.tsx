@@ -23,7 +23,9 @@ export default async function AssessmentLayout({
   let user;
   let fallbackUser = {
     name: session.user.name || 'User',
-    role: 'user',
+    email: session.user.email,
+    role: session.user.role || 'user',
+    image: null,
     notifications: []
   };
 
@@ -63,9 +65,13 @@ export default async function AssessmentLayout({
   return (
     <div className="min-h-screen bg-gray-50">
       <DashboardHeader 
-        userName={user.name || 'Student'} 
-        userRole={user.role}
-        notificationCount={user.notifications?.length || 0}
+        user={{
+          name: user.name,
+          email: user.email,
+          image: user.image
+        }}
+        title="Assessment"
+        notificationCount={user.notifications.length}
       />
       <main>
         {children}

@@ -8,7 +8,7 @@ export const prisma = globalForPrisma.prisma ?? new PrismaClient();
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
 
-// Ensure Prisma only runs on server-side
+// Prevent Prisma from being used in the browser
 if (typeof window !== 'undefined') {
   throw new Error('Prisma Client should not be used in the browser');
 }

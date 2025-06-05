@@ -1,20 +1,37 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/auth';
-import { prisma } from '@/lib/prisma';
-
-interface Props {
-  params: Promise<{
-    id: string;
-  }>;
-}
+import { NextRequest, NextResponse } from 'next/server'
+import { auth } from '@/auth'
+import { prisma } from '@/lib/prisma'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const session = await auth()
+    
+    if (!session?.user || session.user.role !== 'admin') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { id } = await params
+
     const question = await prisma.question.findUnique({
-      where: { id: params.id }
+      where: { id },
+      include: {
+        assessmentType: {
+          select: {
+            id: true,
+            name: true,
+            code: true,
+            targetAudience: true
+          }
+        },
+        _count: {
+          select: {
+            answers: true
+          }
+        }
+      }
     })
 
     if (!question) {
@@ -22,105 +39,94 @@ export async function GET(
     }
 
     return NextResponse.json(question)
-
   } catch (error) {
     console.error('Error fetching question:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
-export async function PUT(request: NextRequest, { params }: Props) {
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
-    const session = await auth();
+    const session = await auth()
     
-    if (!session?.user?.email) {
-      return NextResponse.json(
-        { message: 'Unauthorized' },
-        { status: 401 }
-      );
+    if (!session?.user || session.user.role !== 'admin') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email }
-    });
+    const { id } = await params
+    const data = await request.json()
 
-    if (!user || user.role !== 'admin') {
-      return NextResponse.json(
-        { message: 'Forbidden' },
-        { status: 403 }
-      );
-    }
+    // Remove read-only fields
+    const { 
+      id: _id, 
+      createdAt, 
+      updatedAt,
+      answers,
+      assessmentType,
+      _count,
+      ...updateData 
+    } = data
 
-    const { id } = await params;
-    const body = await request.json();
-
-    const updatedQuestion = await prisma.question.update({
+    const question = await prisma.question.update({
       where: { id },
-      data: {
-        text: body.text,
-        section: body.section,
-        subDomain: body.subDomain || null,
-        type: body.type,
-        options: body.options,
-        order: body.order,
-        timeLimit: body.timeLimit || null,
-        difficulty: body.difficulty || null,
-        trait: body.trait || null,
-        riasecCode: body.riasecCode || null
+      data: updateData,
+      include: {
+        assessmentType: {
+          select: {
+            id: true,
+            name: true,
+            code: true
+          }
+        },
+        _count: {
+          select: {
+            answers: true
+          }
+        }
       }
-    });
+    })
 
-    return NextResponse.json({
-      message: 'Question updated successfully',
-      question: updatedQuestion
-    });
-
+    return NextResponse.json(question)
   } catch (error) {
-    console.error('Question update error:', error);
-    return NextResponse.json(
-      { message: 'Internal server error' },
-      { status: 500 }
-    );
+    console.error('Error updating question:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: Props) {
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
-    const session = await auth();
+    const session = await auth()
     
-    if (!session?.user?.email) {
-      return NextResponse.json(
-        { message: 'Unauthorized' },
-        { status: 401 }
-      );
+    if (!session?.user || session.user.role !== 'admin') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email }
-    });
+    const { id } = await params
 
-    if (!user || user.role !== 'admin') {
-      return NextResponse.json(
-        { message: 'Forbidden' },
-        { status: 403 }
-      );
+    // Check if there are answers for this question
+    const answersCount = await prisma.answer.count({
+      where: { questionId: id }
+    })
+
+    if (answersCount > 0) {
+      return NextResponse.json({ 
+        error: 'Cannot delete question with existing answers. Consider deactivating instead.' 
+      }, { status: 400 })
     }
-
-    const { id } = await params;
 
     await prisma.question.delete({
       where: { id }
-    });
+    })
 
-    return NextResponse.json({
-      message: 'Question deleted successfully'
-    });
-
+    return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Question delete error:', error);
-    return NextResponse.json(
-      { message: 'Internal server error' },
-      { status: 500 }
-    );
+    console.error('Error deleting question:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
